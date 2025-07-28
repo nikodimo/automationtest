@@ -1,0 +1,15 @@
+version: "2"
+authtoken: ""
+tunnels:
+  n8n:
+    addr: 5678
+    proto: http
+    subdomain: ""
+  neo4j:
+    addr: 7474
+    proto: http
+    subdomain: ""
+  ollama:
+    addr: 11434
+    proto: http
+    subdomain: "" 
