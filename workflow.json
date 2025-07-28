@@ -1,0 +1,283 @@
+{
+  "name": "Student Bootcamp Task Generation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minute",
+              "expression": "0"
+            },
+            {
+              "field": "hour",
+              "expression": "6"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Cron Trigger (6 AM Daily)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "students",
+        "options": {}
+      },
+      "id": "get-students",
+      "name": "Get Students from PostgreSQL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300],
+      "webhookId": "get-students"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "llama2"
+            },
+            {
+              "name": "prompt",
+              "value": "Generate a coding task for a student bootcamp. The task should be: 1) Practical and hands-on 2) Suitable for {{$json.cohort}} level students 3) Include clear learning objectives 4) Have estimated duration of 60-120 minutes. Format as JSON with fields: title, description, difficulty_level, category, estimated_duration, learning_objectives (array)."
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-task-ollama",
+      "name": "Generate Task with Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Ollama response and format for database\nconst ollamaResponse = $input.first().json;\nconst responseText = ollamaResponse.response;\n\n// Try to extract JSON from the response\nlet taskData;\ntry {\n  // Look for JSON in the response\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    taskData = JSON.parse(jsonMatch[0]);\n  } else {\n    // Fallback: create structured data from text\n    taskData = {\n      title: \"AI Generated Task\",\n      description: responseText,\n      difficulty_level: \"intermediate\",\n      category: \"Programming\",\n      estimated_duration: 90,\n      learning_objectives: [\"Learn new concepts\", \"Practice coding\"]\n    };\n  }\n} catch (error) {\n  // If parsing fails, create default structure\n  taskData = {\n    title: \"AI Generated Task\",\n    description: responseText,\n    difficulty_level: \"intermediate\",\n    category: \"Programming\",\n    estimated_duration: 90,\n    learning_objectives: [\"Learn new concepts\", \"Practice coding\"]\n  };\n}\n\n// Add metadata\nreturn {\n  json: {\n    ...taskData,\n    generated_by_ai: true,\n    created_at: new Date().toISOString()\n  }\n};"
+      },
+      "id": "parse-task-data",
+      "name": "Parse Task Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://postgres:5432",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "INSERT INTO tasks (title, description, difficulty_level, category, estimated_duration, generated_by_ai) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id"
+            },
+            {
+              "name": "params",
+              "value": "[\"{{$json.title}}\", \"{{$json.description}}\", \"{{$json.difficulty_level}}\", \"{{$json.category}}\", {{$json.estimated_duration}}, true]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-task-postgres",
+      "name": "Save Task to PostgreSQL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://neo4j:7474/db/neo4j/tx/commit",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Basic bmVvNGo6bmlrdTIyMjM="
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "statements",
+              "value": "[{\"statement\": \"CREATE (t:Task {id: $taskId, title: $title, category: $category, difficulty: $difficulty}) RETURN t\", \"parameters\": {\"taskId\": \"{{$json.id}}\", \"title\": \"{{$json.title}}\", \"category\": \"{{$json.category}}\", \"difficulty\": \"{{$json.difficulty_level}}\"}}]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-task-neo4j",
+      "name": "Save Task to Neo4j",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://postgres:5432",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "INSERT INTO student_tasks (student_id, task_id, assigned_date, due_date) SELECT s.id, {{$json.id}}, CURRENT_DATE, CURRENT_DATE + INTERVAL '7 days' FROM students s WHERE s.cohort = 'Spring 2024'"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "assign-tasks-students",
+      "name": "Assign Tasks to Students",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create summary of the automation run\nconst taskData = $input.first().json;\nconst summary = {\n  message: `✅ Task Generation Complete!\\n\\n📋 New Task Created:\\n- Title: ${taskData.title}\\n- Category: ${taskData.category}\\n- Difficulty: ${taskData.difficulty_level}\\n- Duration: ${taskData.estimated_duration} minutes\\n\\n🎯 Assigned to Spring 2024 cohort students\\n📊 Stored in PostgreSQL and Neo4j\\n🤖 Generated by Ollama AI\\n⏰ Triggered at 6:00 AM daily\\n\\nTimestamp: ${new Date().toLocaleString()}`,\n  task_id: taskData.id,\n  timestamp: new Date().toISOString()\n};\n\nreturn { json: summary };"
+      },
+      "id": "create-summary",
+      "name": "Create Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300]
+    }
+  ],
+  "connections": {
+    "Cron Trigger (6 AM Daily)": {
+      "main": [
+        [
+          {
+            "node": "Get Students from PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Students from PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Generate Task with Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Task with Ollama": {
+      "main": [
+        [
+          {
+            "node": "Parse Task Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Task Data": {
+      "main": [
+        [
+          {
+            "node": "Save Task to PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Task to PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Save Task to Neo4j",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Task to Neo4j": {
+      "main": [
+        [
+          {
+            "node": "Assign Tasks to Students",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Tasks to Students": {
+      "main": [
+        [
+          {
+            "node": "Create Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+} 

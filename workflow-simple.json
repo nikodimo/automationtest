@@ -1,0 +1,192 @@
+{
+  "name": "Student Bootcamp Task Generation - Simple",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minute",
+              "expression": "0"
+            },
+            {
+              "field": "hour",
+              "expression": "6"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Cron Trigger (6 AM Daily)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM students WHERE cohort = 'Spring 2024' LIMIT 1",
+        "options": {}
+      },
+      "id": "get-students",
+      "name": "Get Students from PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate a sample task (simulating AI generation)\nconst taskTemplates = [\n  {\n    title: \"Build a REST API with Express.js\",\n    description: \"Create a simple REST API using Node.js and Express. Include endpoints for CRUD operations on a resource of your choice. Implement proper error handling and input validation.\",\n    difficulty_level: \"intermediate\",\n    category: \"Backend Development\",\n    estimated_duration: 120,\n    learning_objectives: [\"Learn Express.js framework\", \"Understand REST principles\", \"Practice API design\"]\n  },\n  {\n    title: \"Create a React Component Library\",\n    description: \"Build a reusable component library using React and TypeScript. Create at least 5 components (Button, Input, Modal, Card, Form) with proper TypeScript interfaces and styling.\",\n    difficulty_level: \"intermediate\",\n    category: \"Frontend Development\",\n    estimated_duration: 90,\n    learning_objectives: [\"Master React components\", \"Learn TypeScript\", \"Practice component design\"]\n  },\n  {\n    title: \"Database Design Challenge\",\n    description: \"Design a normalized database schema for an e-commerce platform. Create ERD diagrams and implement the schema in PostgreSQL with proper relationships and constraints.\",\n    difficulty_level: \"advanced\",\n    category: \"Database\",\n    estimated_duration: 150,\n    learning_objectives: [\"Learn database normalization\", \"Practice ERD design\", \"Understand SQL relationships\"]\n  }\n];\n\n// Select a random task template\nconst randomIndex = Math.floor(Math.random() * taskTemplates.length);\nconst selectedTask = taskTemplates[randomIndex];\n\n// Add metadata\nreturn {\n  json: {\n    ...selectedTask,\n    generated_by_ai: true,\n    created_at: new Date().toISOString()\n  }\n};"
+      },
+      "id": "generate-task",
+      "name": "Generate Task (Simulated AI)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tasks",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "title": "={{ $json.title }}",
+            "description": "={{ $json.description }}",
+            "difficulty_level": "={{ $json.difficulty_level }}",
+            "category": "={{ $json.category }}",
+            "estimated_duration": "={{ $json.estimated_duration }}",
+            "generated_by_ai": "={{ $json.generated_by_ai }}"
+          },
+          "matchingColumns": [],
+          "schema": {
+            "__rl": true,
+            "value": "public",
+            "mode": "list"
+          }
+        },
+        "options": {}
+      },
+      "id": "save-task-postgres",
+      "name": "Save Task to PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [900, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO student_tasks (student_id, task_id, assigned_date, due_date) SELECT s.id, (SELECT id FROM tasks ORDER BY id DESC LIMIT 1), CURRENT_DATE, CURRENT_DATE + INTERVAL '7 days' FROM students s WHERE s.cohort = 'Spring 2024'",
+        "options": {}
+      },
+      "id": "assign-tasks-students",
+      "name": "Assign Tasks to Students",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [1120, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create summary of the automation run\nconst taskData = $input.first().json;\nconst summary = {\n  message: `✅ Task Generation Complete!\\n\\n📋 New Task Created:\\n- Title: ${taskData.title}\\n- Category: ${taskData.category}\\n- Difficulty: ${taskData.difficulty_level}\\n- Duration: ${taskData.estimated_duration} minutes\\n\\n🎯 Assigned to Spring 2024 cohort students\\n📊 Stored in PostgreSQL\\n🤖 Generated by AI Simulation\\n⏰ Triggered at 6:00 AM daily\\n\\nTimestamp: ${new Date().toLocaleString()}`,\n  task_id: taskData.id,\n  timestamp: new Date().toISOString()\n};\n\nreturn { json: summary };"
+      },
+      "id": "create-summary",
+      "name": "Create Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Cron Trigger (6 AM Daily)": {
+      "main": [
+        [
+          {
+            "node": "Get Students from PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Students from PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Generate Task (Simulated AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Task (Simulated AI)": {
+      "main": [
+        [
+          {
+            "node": "Save Task to PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Task to PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Assign Tasks to Students",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Tasks to Students": {
+      "main": [
+        [
+          {
+            "node": "Create Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+} 
