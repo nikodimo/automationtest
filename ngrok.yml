@@ -1,5 +1,5 @@
 version: "2"
-authtoken: ""
+authtoken: "" # User needs to fill this if they want specific subdomains or more features
 tunnels:
   n8n:
     addr: 5678
