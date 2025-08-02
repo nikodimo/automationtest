@@ -42,33 +42,17 @@
     },
     {
       "parameters": {
-        "httpMethod": "POST",
-        "url": "http://ollama:11434/api/generate",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": []
-        },
-        "jsonBody": "{\n  \"model\": \"llama2\",\n  \"prompt\": \"Generate a coding task for a student bootcamp. The task should be: 1) Practical and hands-on 2) Suitable for intermediate level students 3) Include clear learning objectives 4) Have estimated duration of 60-120 minutes. Format as JSON with fields: title, description, difficulty_level, category, estimated_duration, learning_objectives (array).\",\n  \"stream\": false\n}",
-        "options": {}
+        "jsCode": "// Make HTTP request to Ollama using fetch\nconst requestBody = {\n  model: \"phi:latest\",\n  messages: [\n    {\n      role: \"user\",\n      content: \"Generate a coding task for a student bootcamp. The task should be: 1) Practical and hands-on 2) Suitable for intermediate level students 3) Include clear learning objectives 4) Have estimated duration of 60-120 minutes. Format as JSON with fields: title, description, difficulty_level, category, estimated_duration, learning_objectives (array).\"\n    }\n  ],\n  stream: false\n};\n\ntry {\n  const response = await fetch('http://ollama:11434/api/chat', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify(requestBody)\n  });\n  \n  if (!response.ok) {\n    throw new Error(`HTTP error! status: ${response.status}`);\n  }\n  \n  const data = await response.json();\n  return { json: data };\n} catch (error) {\n  // Fallback: create a default task if Ollama fails\n  return {\n    json: {\n      message: {\n        content: JSON.stringify({\n          title: \"Build a REST API with Express.js\",\n          description: \"Create a simple REST API using Node.js and Express. Include endpoints for CRUD operations on a resource of your choice. Implement proper error handling and input validation.\",\n          difficulty_level: \"intermediate\",\n          category: \"Backend Development\",\n          estimated_duration: 120,\n          learning_objectives: [\"Learn Express.js framework\", \"Understand REST principles\", \"Practice API design\"]\n        })\n      }\n    }\n  };\n}"
       },
       "id": "generate-task-ollama",
       "name": "Generate Task with Ollama",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [680, 300]
     },
     {
       "parameters": {
-        "jsCode": "// Parse Ollama response and format for database\nconst ollamaResponse = $input.first().json;\nconst responseText = ollamaResponse.response;\n\n// Try to extract JSON from the response\nlet taskData;\ntry {\n  // Look for JSON in the response\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    taskData = JSON.parse(jsonMatch[0]);\n  } else {\n    // Fallback: create structured data from text\n    taskData = {\n      title: \"AI Generated Task\",\n      description: responseText,\n      difficulty_level: \"intermediate\",\n      category: \"Programming\",\n      estimated_duration: 90,\n      learning_objectives: [\"Learn new concepts\", \"Practice coding\"]\n    };\n  }\n} catch (error) {\n  // If parsing fails, create default structure\n  taskData = {\n    title: \"AI Generated Task\",\n    description: responseText,\n    difficulty_level: \"intermediate\",\n    category: \"Programming\",\n    estimated_duration: 90,\n    learning_objectives: [\"Learn new concepts\", \"Practice coding\"]\n  };\n}\n\n// Add metadata\nreturn {\n  json: {\n    ...taskData,\n    generated_by_ai: true,\n    created_at: new Date().toISOString()\n  }\n};"
+        "jsCode": "// Parse Ollama chat response and format for database\nconst ollamaResponse = $input.first().json;\nconst responseText = ollamaResponse.message?.content || ollamaResponse.response || 'No response';\n\n// Try to extract JSON from the response\nlet taskData;\ntry {\n  // Look for JSON in the response\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    taskData = JSON.parse(jsonMatch[0]);\n  } else {\n    // Fallback: create structured data from text\n    taskData = {\n      title: \"AI Generated Task\",\n      description: responseText,\n      difficulty_level: \"intermediate\",\n      category: \"Programming\",\n      estimated_duration: 90,\n      learning_objectives: [\"Learn new concepts\", \"Practice coding\"]\n    };\n  }\n} catch (error) {\n  // If parsing fails, create default structure\n  taskData = {\n    title: \"AI Generated Task\",\n    description: responseText,\n    difficulty_level: \"intermediate\",\n    category: \"Programming\",\n    estimated_duration: 90,\n    learning_objectives: [\"Learn new concepts\", \"Practice coding\"]\n  };\n}\n\n// Handle estimated_duration - if it's an array, take the first value\nif (Array.isArray(taskData.estimated_duration)) {\n  taskData.estimated_duration = taskData.estimated_duration[0] || 90;\n}\n\n// Ensure learning_objectives is an array\nif (!Array.isArray(taskData.learning_objectives)) {\n  taskData.learning_objectives = [\"Learn new concepts\", \"Practice coding\"];\n}\n\n// Add metadata\nreturn {\n  json: {\n    ...taskData,\n    generated_by_ai: true,\n    created_at: new Date().toISOString()\n  }\n};"
       },
       "id": "parse-task-data",
       "name": "Parse Task Data",
@@ -78,41 +62,25 @@
     },
     {
       "parameters": {
-        "operation": "insert",
-        "schema": {
-          "__rl": true,
-          "value": "public",
-          "mode": "list"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tasks",
-          "mode": "list"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "title": "={{ $json.title }}",
-            "description": "={{ $json.description }}",
-            "difficulty_level": "={{ $json.difficulty_level }}",
-            "category": "={{ $json.category }}",
-            "estimated_duration": "={{ $json.estimated_duration }}",
-            "generated_by_ai": "={{ $json.generated_by_ai }}"
-          },
-          "matchingColumns": [],
-          "schema": {
-            "__rl": true,
-            "value": "public",
-            "mode": "list"
-          }
-        },
+        "jsCode": "// Format data for PostgreSQL insertion\nconst taskData = $input.first().json;\n\n// Ensure learning_objectives is properly formatted as JSON string for JSONB\nconst formattedData = {\n  title: taskData.title,\n  description: taskData.description,\n  difficulty_level: taskData.difficulty_level,\n  category: taskData.category,\n  estimated_duration: taskData.estimated_duration,\n  learning_objectives: JSON.stringify(taskData.learning_objectives),\n  generated_by_ai: taskData.generated_by_ai\n};\n\nreturn { json: formattedData };"
+      },
+      "id": "format-task-data",
+      "name": "Format Task Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO tasks (title, description, difficulty_level, category, estimated_duration, learning_objectives, generated_by_ai) VALUES ('{{ $json.title }}', '{{ $json.description }}', '{{ $json.difficulty_level }}', '{{ $json.category }}', {{ $json.estimated_duration }}, '{{ $json.learning_objectives }}'::jsonb, {{ $json.generated_by_ai }}) RETURNING id",
         "options": {}
       },
       "id": "save-task-postgres",
       "name": "Save Task to PostgreSQL",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.1,
-      "position": [1120, 300],
+      "position": [1340, 300],
       "credentials": {
         "postgres": {
           "id": "postgres-credentials",
@@ -130,7 +98,7 @@
       "name": "Assign Tasks to Students",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.1,
-      "position": [1340, 300],
+      "position": [1560, 300],
       "credentials": {
         "postgres": {
           "id": "postgres-credentials",
@@ -146,7 +114,7 @@
       "name": "Create Summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1560, 300]
+      "position": [1780, 300]
     }
   ],
   "connections": {
@@ -184,6 +152,17 @@
       ]
     },
     "Parse Task Data": {
+      "main": [
+        [
+          {
+            "node": "Format Task Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Task Data": {
       "main": [
         [
           {

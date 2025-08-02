@@ -1,0 +1,5 @@
+version: "2"
+tunnels:
+  n8n:
+    addr: 5678
+    proto: http 

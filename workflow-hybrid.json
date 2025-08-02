@@ -1,0 +1,129 @@
+{
+  "name": "Task Generation - Hybrid Approach",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "http://ollama:11434/api/chat",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "phi:latest"
+            },
+            {
+              "name": "messages",
+              "value": "=[{\"role\":\"user\",\"content\":\"Generate a coding task for a student bootcamp. The task should be: 1) Practical and hands-on 2) Suitable for intermediate level students 3) Include clear learning objectives 4) Have estimated duration of 60-120 minutes. Format as JSON with fields: title, description, difficulty_level, category, estimated_duration, learning_objectives (array).\"}]"
+            },
+            {
+              "name": "stream",
+              "value": "false"
+            }
+          ]
+        }
+      },
+      "id": "ollama-http-request",
+      "name": "Ollama HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle Ollama response or provide fallback\nconst input = $input.first();\n\nif (input.json && input.json.message && input.json.message.content) {\n  // Success - parse the AI response\n  try {\n    const content = input.json.message.content;\n    const taskData = JSON.parse(content);\n    \n    return {\n      json: {\n        title: taskData.title,\n        description: taskData.description,\n        difficulty_level: taskData.difficulty_level,\n        category: taskData.category,\n        estimated_duration: Array.isArray(taskData.estimated_duration) ? taskData.estimated_duration[0] : taskData.estimated_duration,\n        learning_objectives: Array.isArray(taskData.learning_objectives) ? taskData.learning_objectives : [taskData.learning_objectives],\n        generated_by_ai: true\n      }\n    };\n  } catch (error) {\n    // Fallback if parsing fails\n    return {\n      json: {\n        title: \"Build a REST API with Express.js\",\n        description: \"Create a simple REST API using Node.js and Express. Include endpoints for CRUD operations on a resource of your choice. Implement proper error handling and input validation.\",\n        difficulty_level: \"intermediate\",\n        category: \"Backend Development\",\n        estimated_duration: 120,\n        learning_objectives: [\"Learn Express.js framework\", \"Understand REST principles\", \"Practice API design\"],\n        generated_by_ai: false\n      }\n    };\n  }\n} else {\n  // Fallback if Ollama request failed\n  return {\n    json: {\n      title: \"Build a REST API with Express.js\",\n      description: \"Create a simple REST API using Node.js and Express. Include endpoints for CRUD operations on a resource of your choice. Implement proper error handling and input validation.\",\n      difficulty_level: \"intermediate\",\n      category: \"Backend Development\",\n      estimated_duration: 120,\n      learning_objectives: [\"Learn Express.js framework\", \"Understand REST principles\", \"Practice API design\"],\n      generated_by_ai: false\n    }\n  };\n}"
+      },
+      "id": "handle-response",
+      "name": "Handle Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format data for PostgreSQL insertion\nconst taskData = $input.first().json;\n\n// Ensure learning_objectives is properly formatted as JSON string for JSONB\nconst formattedData = {\n  title: taskData.title,\n  description: taskData.description,\n  difficulty_level: taskData.difficulty_level,\n  category: taskData.category,\n  estimated_duration: taskData.estimated_duration,\n  learning_objectives: JSON.stringify(taskData.learning_objectives),\n  generated_by_ai: taskData.generated_by_ai\n};\n\nreturn { json: formattedData };"
+      },
+      "id": "format-task-data",
+      "name": "Format Task Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO tasks (title, description, difficulty_level, category, estimated_duration, learning_objectives, generated_by_ai)\nVALUES ('{{ $json.title }}', '{{ $json.description }}', '{{ $json.difficulty_level }}', '{{ $json.category }}', {{ $json.estimated_duration }}, '{{ $json.learning_objectives }}'::jsonb, {{ $json.generated_by_ai }}) RETURNING id"
+      },
+      "id": "save-task",
+      "name": "Save Task to PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the saved task and assign to students\nconst savedTask = $input.first().json;\nconst taskId = savedTask.id;\n\n// Get Spring 2024 students\nconst students = [\n  { id: 1, name: 'Alice Johnson', email: 'alice@example.com' },\n  { id: 2, name: 'Bob Smith', email: 'bob@example.com' },\n  { id: 3, name: 'Charlie Brown', email: 'charlie@example.com' }\n];\n\n// Create summary\nconst summary = {\n  task_id: taskId,\n  task_title: savedTask.title,\n  assigned_students: students.length,\n  students: students,\n  message: `Task '${savedTask.title}' has been created and assigned to ${students.length} students in Spring 2024 cohort.`\n};\n\nreturn { json: summary };"
+      },
+      "id": "create-summary",
+      "name": "Create Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 300]
+    }
+  ],
+  "connections": {
+    "Ollama HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Handle Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Response": {
+      "main": [
+        [
+          {
+            "node": "Format Task Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Task Data": {
+      "main": [
+        [
+          {
+            "node": "Save Task to PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Task to PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Create Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+} 

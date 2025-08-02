@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     difficulty_level VARCHAR(20) CHECK (difficulty_level IN ('beginner', 'intermediate', 'advanced')),
     category VARCHAR(50),
     estimated_duration INTEGER, -- in minutes
+    learning_objectives JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     generated_by_ai BOOLEAN DEFAULT FALSE
 );
